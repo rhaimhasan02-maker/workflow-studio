@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Workflow Studio</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a2d;--line:#26344f;--muted:#93a4c2;--txt:#eef3ff;--accent:#8b7cff;--green:#42d6a4}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#1b2450,#0b1020 42%);color:var(--txt);font-family:system-ui,Arial}
+header{height:66px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-bottom:1px solid var(--line);background:#0d1425e8;position:sticky;top:0;z-index:5}
+.brand{font-weight:800;font-size:19px}.brand span{color:var(--accent)}.status{color:var(--muted);font-size:12px}
+main{display:grid;grid-template-columns:230px 1fr 310px;min-height:calc(100vh - 66px)}
+aside,.inspector{background:#10182a;border-left:1px solid var(--line);padding:16px}.inspector{border-left:0;border-right:1px solid var(--line)}
+h3{font-size:13px;color:#aebcda;margin:8px 0 14px}.tool{width:100%;text-align:right;background:#18243a;border:1px solid #2a3956;color:var(--txt);padding:12px;border-radius:12px;margin:5px 0;cursor:grab}.tool:hover{border-color:var(--accent)}
+.canvas{position:relative;overflow:auto;min-height:calc(100vh - 66px);background-image:radial-gradient(#293654 1px,transparent 1px);background-size:22px 22px}
+#board{position:relative;width:1500px;height:1100px}.node{position:absolute;width:230px;background:#151f34;border:1px solid #354565;border-radius:14px;box-shadow:0 14px 32px #0005;cursor:move}.node.selected{border-color:var(--accent);box-shadow:0 0 0 2px #8b7cff44,0 14px 32px #0006}.nodehead{padding:11px 13px;border-bottom:1px solid #2b3954;display:flex;justify-content:space-between;font-weight:700}.nodebody{padding:12px;color:var(--muted);font-size:12px;min-height:55px}.dot{display:inline-block;width:8px;height:8px;background:var(--green);border-radius:50%;margin-left:7px}
+button{background:var(--accent);border:0;border-radius:9px;padding:10px 14px;color:white;font-weight:700;cursor:pointer}button.secondary{background:#26344f}button:disabled{opacity:.5;cursor:not-allowed}
+textarea,input,select{width:100%;background:#0d1526;border:1px solid #2d3c59;border-radius:9px;padding:10px;color:var(--txt);margin:6px 0 12px;font:inherit}textarea{min-height:100px;resize:vertical}label{font-size:12px;color:#aebcda}
+.actions{display:flex;gap:8px;flex-wrap:wrap;padding:12px}.log{white-space:pre-wrap;background:#0b1323;border:1px solid #26344f;border-radius:10px;padding:10px;max-height:190px;overflow:auto;font-size:12px;color:#b9c7e2}
+.preview img{width:100%;border-radius:10px;margin-top:8px}.scene{border:1px solid #2b3954;padding:10px;border-radius:10px;margin:8px 0;background:#111b2e}.timeline-item{background:#111b2e;border:1px solid #2b3954;border-radius:10px;padding:10px;margin:8px 0}.timeline-item input,.timeline-item select{margin:4px 0 8px}.timeline-actions{display:flex;gap:5px;flex-wrap:wrap}.timeline-actions button{padding:7px 10px;font-size:11px}
+@media(max-width:900px){main{grid-template-columns:1fr}.palette{display:none}.inspector{border:0;border-top:1px solid var(--line)}.canvas{min-height:550px}}
+</style></head>
+<body>
+<header><div class="brand">✦ Workflow <span>Studio</span> <small style="color:#7182a4">1.11</small></div><div class="status" id="status">جاري فحص الخادم...</div></header>
+<main>
+<aside class="palette"><h3>مكوّنات سير العمل</h3>
+<button class="tool" data-type="script">📝 كتابة السكريبت</button>
+<button class="tool" data-type="transcript">🎙️ تفريغ الصوت</button>
+<button class="tool" data-type="ai">✨ معالجة بالذكاء الاصطناعي</button>
+<button class="tool" data-type="scenes">🎬 تقسيم إلى مشاهد</button>
+<button class="tool" data-type="image">🖼️ توليد صورة</button>
+<button class="tool" data-type="output">📦 النتيجة</button>
+<div style="font-size:11px;color:#7f90b0;line-height:1.8;margin-top:20px">اضغط على أي مكوّن لإضافته إلى مساحة العمل، ثم اختره لتعديل إعداداته.</div></aside>
+<section class="canvas"><div class="actions"><button id="run">▶ تشغيل سير العمل</button><button class="secondary" id="save">حفظ المشروع</button><button class="secondary" id="export">تصدير JSON</button><button class="secondary" id="importProject">استيراد مشروع</button><button class="secondary" id="exportSrt">تصدير ترجمة SRT</button><input type="file" id="projectFile" accept="application/json,.json" hidden><button class="secondary" id="makeStoryboard">🖼️ توليد صور كل المشاهد</button><button class="secondary" id="makeVideo">🎞️ إنشاء فيديو بصوت</button><button class="secondary" id="clear">مسح اللوحة</button></div><div id="board"></div></section>
+<aside class="inspector"><h3>إعدادات المكوّن</h3><div id="editor" style="color:var(--muted);font-size:13px">اختر مكوّناً من اللوحة.</div><h3 style="margin-top:24px">سجل التنفيذ</h3><div class="log" id="log">جاهز. أضف المكوّنات وابدأ التشغيل.</div><div id="preview" class="preview"></div><h3>دليل الشخصيات الثابت</h3><div id="characters" class="log">سيظهر هنا بعد تقسيم السكريبت إلى مشاهد.</div><h3 style="margin-top:18px">🎞️ خطّ المشاهد الزمني</h3><div id="timeline"><div class="status">قسّم السكريبت إلى مشاهد لعرضها هنا.</div></div><label>صورة مرجعية للشخصيات</label><input type="file" id="characterReference" accept="image/png,image/jpeg,image/webp"><div id="referenceStatus" class="status">اختياري: ارفع صورة مرجعية للمساعدة في ثبات شكل الشخصية.</div></aside>
+</main>
+<script>
+const $=s=>document.querySelector(s), board=$("#board"), log=$("#log"), editor=$("#editor");
+let nodes=[], selected=null, nextId=1;
+const meta={script:["كتابة السكريبت","📝"],transcript:["تفريغ الصوت","🎙️"],ai:["معالجة AI","✨"],scenes:["تقسيم مشاهد","🎬"],image:["توليد صورة","🖼️"],output:["النتيجة","📦"]};
+function add(type,x=80+(nodes.length%3)*270,y=100+Math.floor(nodes.length/3)*180){let n={id:nextId++,type,x,y,text:"",result:""};nodes.push(n);render();select(n.id)}
+document.querySelectorAll(".tool").forEach(b=>b.onclick=()=>add(b.dataset.type));
+function render(){board.innerHTML="";nodes.forEach(n=>{let d=document.createElement("div");d.className="node"+(n.id===selected?" selected":"");d.style.left=n.x+"px";d.style.top=n.y+"px";d.innerHTML=`<div class="nodehead"><span>${meta[n.type][1]} ${meta[n.type][0]}</span><span class="dot"></span></div><div class="nodebody">${(n.result||n.text||"اضغط لتعديل الإعدادات").replace(/[<>]/g,"").slice(0,95)}</div>`;d.onclick=()=>select(n.id);let sx,sy,ox,oy;d.onpointerdown=e=>{if(e.target.tagName==="TEXTAREA")return;sx=e.clientX;sy=e.clientY;ox=n.x;oy=n.y;d.setPointerCapture(e.pointerId);d.onpointermove=ev=>{n.x=ox+ev.clientX-sx;n.y=oy+ev.clientY-sy;d.style.left=n.x+"px";d.style.top=n.y+"px"};d.onpointerup=()=>{d.onpointermove=null}};board.appendChild(d)})}
+function select(id){selected=id;render();let n=nodes.find(x=>x.id===id);if(!n)return;
+let html=`<label>اسم المكوّن</label><input id="nodeText" value="${(n.text||"").replace(/"/g,"&quot;")}" placeholder="اكتب المحتوى أو التعليمات">`;
+if(n.type==="transcript")html+=`<label>ملف صوتي (حتى 25MB)</label><input type="file" id="audio" accept="audio/*">`;
+if(n.type==="scenes")html+=`<label>الأسلوب البصري</label><input id="style" value="2D animation, clean shapes, expressive characters">`;
+if(n.type==="image")html+=`<label>مقاس الصورة</label><select id="size"><option>1024x1024</option><option>1536x1024</option><option>1024x1536</option></select>`;
+html+=`<div style="display:flex;gap:7px;margin-top:10px"><button id="apply">حفظ الإعدادات</button><button class="secondary" id="delete">حذف</button></div>`;
+if(n.result)html+=`<h3>آخر نتيجة</h3><div class="log">${n.result.slice(0,1400)}</div>`;
+editor.innerHTML=html;$("#apply").onclick=()=>{n.text=$("#nodeText").value;render();select(id)};$("#delete").onclick=()=>{nodes=nodes.filter(x=>x.id!==id);selected=null;render();editor.textContent="اختر مكوّناً من اللوحة."};
+}
+function say(s){log.textContent=s+"\\n"+log.textContent}
+async function post(url,data){let r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});let j=await r.json();if(!r.ok)throw Error(j.error||"حدث خطأ");return j}
+$("#run").onclick=async()=>{let last="";$("#run").disabled=true;try{for(const n of nodes){say("تشغيل: "+meta[n.type][0]);if(n.type==="script"){last=n.text||last;n.result=last}
+else if(n.type==="transcript"){let f=$("#audio")?.files?.[0];if(f){let fd=new FormData();fd.append("audio",f);let r=await fetch("/api/transcribe",{method:"POST",body:fd});let j=await r.json();if(!r.ok)throw Error(j.error);last=j.text;n.result=last}else if(n.text){last=n.text;n.result=last}}
+else if(n.type==="ai"){let j=await post("/api/ai",{prompt:(n.text||"حسّن النص التالي مع الحفاظ على المعنى:\\n")+last});last=j.text;n.result=last}
+else if(n.type==="scenes"){let j=await post("/api/scenes",{script:n.text||last,style:$("#style")?.value});last=JSON.stringify(j,null,2);n.result=last;window.lastScenes=j;
+if(Array.isArray(j.scenes)){j.scenes=j.scenes.map((sc,i)=>({...sc,duration:Number(sc.duration)||6,camera:sc.camera||["zoom-in","pan-left","zoom-out","pan-right"][i%4]}));renderTimeline();}
+if(Array.isArray(j.characters)){
+  $("#characters").textContent=j.characters.map(c=>`${c.name}: ${c.appearance||""}\nالشخصية: ${c.personality||"—"}`).join("\n\n") || "لم يتم تحديد شخصيات.";
+}}
+else if(n.type==="image"){let prompt=n.text||((window.lastScenes?.scenes||[])[0]?.image_prompt)||last;let j=await generateImageWithOptionalReference(prompt,$("#size")?.value||"1024x1024");n.result=j.image?"تم توليد الصورة بنجاح":"لم يتم إرجاع صورة";if(j.image){$("#preview").innerHTML=`<img alt="Generated image" src="${j.image}">`;window.lastImage=j.image}}
+else if(n.type==="output"){n.result=last||"لا توجد بيانات بعد"}render()}say("اكتمل التنفيذ.");select(selected||nodes[nodes.length-1]?.id)}catch(e){say("خطأ: "+e.message);alert(e.message)}finally{$("#run").disabled=false}};
+$("#save").onclick=()=>{localStorage.setItem("workflow-studio-project",JSON.stringify({version:"1.11",nodes,scenes:window.lastScenes||null}));say("تم الحفظ على هذا الجهاز.")};
+$("#clear").onclick=()=>{if(confirm("مسح كل المكوّنات؟")){nodes=[];selected=null;render();editor.textContent="اختر مكوّناً من اللوحة."}};
+$("#export").onclick=()=>{let a=document.createElement("a"),u=URL.createObjectURL(new Blob([JSON.stringify({version:"1.11",nodes,scenes:window.lastScenes||null},null,2)],{type:"application/json"}));a.href=u;a.download="workflow-project.json";a.click();URL.revokeObjectURL(u)};
+try{let saved=JSON.parse(localStorage.getItem("workflow-studio-project")||"[]");if(Array.isArray(saved)){if(saved.length){nodes=saved;nextId=Math.max(...nodes.map(n=>n.id))+1;render()}}else{nodes=saved.nodes||[];window.lastScenes=saved.scenes||null;if(nodes.length){nextId=Math.max(...nodes.map(n=>n.id))+1;render()}if(window.lastScenes)renderTimeline()}}catch{}
+
+
+async function generateImageWithOptionalReference(prompt,size){
+  const ref=$("#characterReference")?.files?.[0];
+  if(!ref) return await post("/api/image",{prompt,size});
+  const fd=new FormData();
+  fd.append("reference",ref);
+  fd.append("prompt",prompt+"\nUse the uploaded image as the visual character reference. Preserve the same character identity, face, hairstyle, clothing, proportions and color palette. Change only the scene, pose and action as described.");
+  fd.append("size",size);
+  const response=await fetch("/api/image-reference",{method:"POST",body:fd});
+  const data=await response.json();
+  if(!response.ok) throw Error(data.error||"فشل توليد الصورة المرجعية.");
+  return data;
+}
+$("#characterReference")?.addEventListener("change",e=>{
+  const file=e.target.files?.[0];
+  $("#referenceStatus").textContent=file?`تم اختيار: ${file.name}`:"لم يتم اختيار صورة مرجعية.";
+});
+
+function scenePrompt(scene,index){
+  let prompt=scene.image_prompt || scene.visual || scene.action || `2D animated scene: ${scene.voiceover||""}`;
+  const cast=window.lastScenes?.characters||[];
+  const relevant=(scene.characters?.length ? cast.filter(c=>scene.characters.includes(c.name)) : cast);
+  const guide=relevant.map(c=>`${c.name}: ${c.appearance||""}`).join("; ");
+  if(guide) prompt += "\nMaintain exact recurring character design: "+guide;
+  if(window.lastScenes?.style_guide) prompt += "\nConsistent visual style: "+window.lastScenes.style_guide;
+  prompt += `\nStoryboard frame for scene ${index+1}. Clear readable composition, consistent character design.`;
+  return prompt;
+}
+async function generateSceneImage(scene,index){
+  const result=await generateImageWithOptionalReference(scenePrompt(scene,index),"1536x1024");
+  if(!result.image) throw Error(`لم يتم إنشاء صورة للمشهد ${index+1}`);
+  scene.imageData=result.image;
+  return result.image;
+}
+async function generateAllStoryboardImages(){
+  const scenes=window.lastScenes?.scenes;
+  if(!Array.isArray(scenes)||!scenes.length){alert("قسّم السكريبت إلى مشاهد أولاً.");return;}
+  const btn=$("#makeStoryboard");btn.disabled=true;
+  try{
+    for(let i=0;i<scenes.length;i++){
+      if(scenes[i].imageData) continue;
+      say(`توليد صورة المشهد ${i+1} من ${scenes.length}...`);
+      await generateSceneImage(scenes[i],i);
+      renderTimeline();
+    }
+    say("اكتمل الـStoryboard. الصور جاهزة للمعاينة وإنتاج الفيديو.");
+  }catch(e){say("توقف توليد الصور: "+e.message);alert(e.message)}
+  finally{btn.disabled=false;}
+}
+$("#makeStoryboard").onclick=generateAllStoryboardImages;
+
+function renderTimeline(){
+  const root=$("#timeline"), scenes=window.lastScenes?.scenes;
+  if(!Array.isArray(scenes)||!scenes.length){root.innerHTML='<div class="status">قسّم السكريبت إلى مشاهد لعرضها هنا.</div>';return;}
+  root.innerHTML="";
+  scenes.forEach((scene,index)=>{
+    const card=document.createElement("div");card.className="timeline-item";
+    const title=document.createElement("strong");title.textContent=`المشهد ${index+1}${scene.imageData?" • الصورة جاهزة":""}`;card.appendChild(title);
+    if(scene.imageData){const thumb=document.createElement("img");thumb.src=scene.imageData;thumb.alt=`صورة المشهد ${index+1}`;thumb.style.cssText="width:100%;border-radius:8px;margin:8px 0;";card.appendChild(thumb);}
+    const makeImage=document.createElement("button");makeImage.className="secondary";makeImage.textContent=scene.imageData?"إعادة توليد الصورة":"توليد صورة المشهد";makeImage.onclick=async()=>{makeImage.disabled=true;try{say(`توليد صورة المشهد ${index+1}...`);await generateSceneImage(scene,index);renderTimeline();say(`تم تجهيز صورة المشهد ${index+1}.`)}catch(e){alert(e.message);makeImage.disabled=false}};card.appendChild(makeImage);
+    const caption=document.createElement("label");caption.textContent="التعليق الصوتي / وصف المشهد";card.appendChild(caption);
+    const voice=document.createElement("textarea");voice.value=scene.voiceover||scene.action||scene.visual||"";voice.rows=3;voice.onchange=()=>{scene.voiceover=voice.value;};card.appendChild(voice);
+    const durationLabel=document.createElement("label");durationLabel.textContent="المدة بالثواني (3 إلى 30)";card.appendChild(durationLabel);
+    const duration=document.createElement("input");duration.type="number";duration.min="3";duration.max="30";duration.value=scene.duration||6;duration.onchange=()=>scene.duration=Math.max(3,Math.min(30,Number(duration.value)||6));card.appendChild(duration);
+    const cameraLabel=document.createElement("label");cameraLabel.textContent="حركة الكاميرا";card.appendChild(cameraLabel);
+    const camera=document.createElement("select");
+    [["zoom-in","تقريب تدريجي"],["zoom-out","ابتعاد تدريجي"],["pan-left","تحريك لليسار"],["pan-right","تحريك لليمين"],["static","ثابت"]].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;camera.appendChild(o)});
+    camera.value=scene.camera||"zoom-in";camera.onchange=()=>scene.camera=camera.value;card.appendChild(camera);
+    const actions=document.createElement("div");actions.className="timeline-actions";
+    const up=document.createElement("button");up.className="secondary";up.textContent="↑ تقديم";up.disabled=index===0;up.onclick=()=>{[scenes[index-1],scenes[index]]=[scenes[index],scenes[index-1]];renderTimeline()};
+    const down=document.createElement("button");down.className="secondary";down.textContent="↓ تأخير";down.disabled=index===scenes.length-1;down.onclick=()=>{[scenes[index+1],scenes[index]]=[scenes[index],scenes[index+1]];renderTimeline()};
+    const remove=document.createElement("button");remove.className="secondary";remove.textContent="حذف";remove.onclick=()=>{scenes.splice(index,1);renderTimeline()};
+    actions.append(up,down,remove);card.appendChild(actions);root.appendChild(card);
+  });
+}
+
+async function makeStoryboardVideo(){
+  const scenes = window.lastScenes?.scenes;
+  if(!Array.isArray(scenes) || !scenes.length){
+    alert("شغّل عقدة تقسيم المشاهد أولاً لإنشاء المشاهد.");
+    return;
+  }
+  if(!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream){
+    alert("تسجيل الفيديو غير مدعوم في هذا المتصفح. جرّب Chrome.");
+    return;
+  }
+  const btn=$("#makeVideo");
+  btn.disabled=true;
+  const sayLocal = (s)=>{ log.textContent=s+"\n"+log.textContent; };
+  let audioContext;
+  try{
+    const rendered=[];
+    for(let i=0;i<scenes.length;i++){
+      const scene=scenes[i];
+      sayLocal(`تجهيز المشهد ${i+1} من ${scenes.length}...`);
+      const imageData=scene.imageData || await generateSceneImage(scene,i);
+      const img=new Image(); img.src=imageData;
+      await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject});
+      let audioBuffer=null;
+      const spoken=(scene.voiceover||scene.action||scene.visual||"").trim();
+      if(spoken){
+        sayLocal(`إنشاء التعليق الصوتي للمشهد ${i+1}...`);
+        const speech=await post("/api/speech",{text:spoken,voice:"alloy"});
+        const binary=atob(speech.audio);
+        const bytes=new Uint8Array(binary.length);
+        for(let k=0;k<binary.length;k++)bytes[k]=binary.charCodeAt(k);
+        if(!audioContext) audioContext=new (window.AudioContext||window.webkitAudioContext)();
+        audioBuffer=await audioContext.decodeAudioData(bytes.buffer);
+      }
+      rendered.push({img,caption:spoken||scene.action||scene.visual||`المشهد ${i+1}`,title:`المشهد ${i+1}`,audioBuffer});
+    }
+
+    const canvas=document.createElement("canvas");canvas.width=1280;canvas.height=720;
+    const ctx=canvas.getContext("2d");
+    const canvasStream=canvas.captureStream(25);
+    let mixedStream=canvasStream;
+    let audioDestination=null;
+    if(audioContext){
+      audioDestination=audioContext.createMediaStreamDestination();
+      mixedStream=new MediaStream([...canvasStream.getVideoTracks(),...audioDestination.stream.getAudioTracks()]);
+      await audioContext.resume();
+    }
+    const mime=MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")?"video/webm;codecs=vp9,opus":"video/webm";
+    const recorder=new MediaRecorder(mixedStream,{mimeType:mime});
+    const chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+    const finished=new Promise(resolve=>recorder.onstop=resolve);
+    recorder.start();
+
+    for(let s=0;s<rendered.length;s++){
+      const item=rendered[s];
+      let source=null;
+      if(item.audioBuffer && audioContext && audioDestination){
+        source=audioContext.createBufferSource();
+        source.buffer=item.audioBuffer;
+        source.connect(audioDestination);
+        source.start();
+      }
+      const requestedDuration=Math.max(3,Math.min(30,Number(scenes[s].duration)||6))*1000;
+      const sceneDuration=Math.max(requestedDuration,item.audioBuffer?item.audioBuffer.duration*1000+500:0);
+      const frames=Math.ceil(sceneDuration/40);
+      for(let f=0;f<frames;f++){
+        const t=f/(frames-1||1);
+        const camera=scenes[s].camera||"zoom-in";
+        const scale=camera==="zoom-out"?1.10-t*.08:(camera==="static"?1.04:1.02+t*.08);
+        const drift=camera==="pan-left"?-t*28:(camera==="pan-right"?t*28:0);
+        const iw=canvas.width*scale,ih=canvas.height*scale;
+        ctx.fillStyle="#080d19";ctx.fillRect(0,0,canvas.width,canvas.height);
+        const ar=item.img.width/item.img.height,cr=canvas.width/canvas.height;
+        let sx=0,sy=0,sw=item.img.width,sh=item.img.height;
+        if(ar>cr){sw=item.img.height*cr;sx=(item.img.width-sw)/2}else{sh=item.img.width/cr;sy=(item.img.height-sh)/2}
+        ctx.save();ctx.translate(canvas.width/2+drift,canvas.height/2);ctx.scale(scale,scale);
+        ctx.drawImage(item.img,sx,sy,sw,sh,-canvas.width/2,-canvas.height/2,canvas.width,canvas.height);ctx.restore();
+        const grad=ctx.createLinearGradient(0,470,0,720);grad.addColorStop(0,"rgba(4,8,18,0)");grad.addColorStop(1,"rgba(4,8,18,.92)");
+        ctx.fillStyle=grad;ctx.fillRect(0,420,canvas.width,300);
+        ctx.direction="rtl";ctx.textAlign="right";ctx.fillStyle="#fff";ctx.font="bold 28px Arial";
+        ctx.fillText(item.title,canvas.width-54,canvas.height-112);
+        ctx.font="24px Arial";ctx.fillStyle="#e7ecff";
+        const words=item.caption.split(/\s+/);let lines=[],line="";
+        for(const word of words){const test=line?line+" "+word:word;if(ctx.measureText(test).width>canvas.width-110){lines.push(line);line=word}else line=test}
+        if(line)lines.push(line);
+        lines.slice(0,2).forEach((ln,j)=>ctx.fillText(ln,canvas.width-54,canvas.height-66+j*34));
+        await new Promise(r=>setTimeout(r,40));
+      }
+      if(source){try{source.stop()}catch{}}
+    }
+    recorder.stop();await finished;
+    const blob=new Blob(chunks,{type:"video/webm"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download="workflow-animation-with-voice.webm";a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),30000);
+    sayLocal("تم إنشاء فيديو WebM مع تعليق صوتي للمشاهد.");
+  }catch(e){sayLocal("تعذر إنشاء الفيديو: "+e.message);alert(e.message)}
+  finally{btn.disabled=false;if(audioContext)audioContext.close().catch(()=>{})}
+}
+$("#makeVideo").onclick=makeStoryboardVideo;
+
+
+// Project import and subtitle export utilities.
+function loadProjectData(data){
+  if(!data || !Array.isArray(data.nodes)) throw new Error("ملف المشروع غير صالح: قائمة المكوّنات غير موجودة.");
+  nodes=data.nodes.filter(n=>n && Number.isFinite(Number(n.id)) && meta[n.type]).map(n=>({...n,id:Number(n.id),x:Number(n.x)||80,y:Number(n.y)||100}));
+  nextId=nodes.length?Math.max(...nodes.map(n=>n.id))+1:1;
+  window.lastScenes=data.scenes && Array.isArray(data.scenes.scenes)?data.scenes:null;
+  selected=null;render();editor.textContent="تم استيراد المشروع. اختر مكوّناً لتعديل إعداداته.";
+  if(window.lastScenes) renderTimeline(); else $("#timeline").innerHTML='<div class="status">لا توجد مشاهد في هذا المشروع.</div>';
+  localStorage.setItem("workflow-studio-project",JSON.stringify({version:"1.11",nodes,scenes:window.lastScenes}));
+  say("تم استيراد المشروع وحفظه محليًا.");
+}
+$("#importProject").onclick=()=>$("#projectFile").click();
+$("#projectFile").onchange=async e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  try{loadProjectData(JSON.parse(await file.text()));}catch(err){alert(err.message||"تعذر قراءة ملف المشروع.");}
+  e.target.value="";
+};
+function srtTime(ms){const t=Math.max(0,Math.round(ms));const h=Math.floor(t/3600000),m=Math.floor(t%3600000/60000),s=Math.floor(t%60000/1000),z=t%1000;return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")},${String(z).padStart(3,"0")}`;}
+$("#exportSrt").onclick=()=>{
+  const scenes=window.lastScenes?.scenes;
+  if(!Array.isArray(scenes)||!scenes.length){alert("قسّم السكريبت إلى مشاهد أولاً.");return;}
+  let cursor=0;const entries=[];
+  scenes.forEach((scene,i)=>{
+    const text=(scene.voiceover||scene.action||scene.visual||"").trim();
+    const duration=Math.max(3,Math.min(30,Number(scene.duration)||6))*1000;
+    if(text) entries.push(`${entries.length+1}\n${srtTime(cursor)} --> ${srtTime(cursor+duration)}\n${text}`);
+    cursor+=duration;
+  });
+  if(!entries.length){alert("لا توجد تعليقات صوتية لتصديرها.");return;}
+  const blob=new Blob(["\uFEFF"+entries.join("\n\n")],{type:"text/plain;charset=utf-8"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="workflow-subtitles.srt";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  say("تم تصدير ملف الترجمة SRT. التوقيت مبني على مدد المشاهد المحددة.");
+};
+// Keep a recovery copy after meaningful edits without replacing the explicit Save action.
+window.addEventListener("beforeunload",()=>{try{localStorage.setItem("workflow-studio-project",JSON.stringify({version:"1.11",nodes,scenes:window.lastScenes||null}));}catch{}});
+
+fetch("/api/health").then(r=>r.json()).then(d=>$("#status").textContent=d.aiConfigured?"الخادم متصل • مفتاح AI مضبوط":"الخادم متصل • أضف مفتاح API").catch(()=>$("#status").textContent="الخادم غير متصل — شغّل npm start");
+</script></body></html>
